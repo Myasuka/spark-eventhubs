@@ -65,11 +65,9 @@ object EventHubsUtils {
    * @return ReceiverInputStream
    */
   // scalastyle:on
-  def createUnionStream(
-                         streamingContext: StreamingContext,
-                         eventhubsParams: Map[String, String],
-                         storageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK_SER
-                       ): DStream[Array[Byte]] = {
+  @deprecated("this method is deprecated, please use createDirectStreams", "2.0.5")
+  def createUnionStream(streamingContext: StreamingContext, eventhubsParams: Map[String, String],
+      storageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK_SER): DStream[Array[Byte]] = {
     val partitionCount = eventhubsParams("eventhubs.partition.count").toInt
     val streams = (0 until partitionCount).map {
       i => createStream(streamingContext, eventhubsParams, i.toString, storageLevel)
@@ -89,6 +87,7 @@ object EventHubsUtils {
    * @param receiverClient   the EventHubs client implementation, defaults to EventHubsClientWrapper
    * @return ReceiverInputStream
    */
+  @deprecated("this method is deprecated, please use createDirectStreams", "2.0.5")
   def createStream(streamingContext: StreamingContext,
                    eventhubsParams: Map[String, String],
                    partitionId: String,
@@ -114,10 +113,6 @@ object EventHubsUtils {
       eventHubNamespace: String,
       progressDir: String,
       eventParams: Predef.Map[String, Predef.Map[String, String]]): EventHubDirectDStream = {
-    if (!ssc.sparkContext.isLocal) {
-      require(progressDir.startsWith("hdfs://") || progressDir.startsWith("adl://"),
-        "we only support HDFS/ADLS based progress file storage")
-    }
     val newStream = new EventHubDirectDStream(ssc, eventHubNamespace, progressDir, eventParams)
     newStream
   }

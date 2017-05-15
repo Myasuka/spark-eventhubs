@@ -31,7 +31,7 @@ import org.scalatest.mock.MockitoSugar
 
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.{Milliseconds, StreamingContext}
-import org.apache.spark.streaming.eventhubs.EventhubsOffsetTypes.EventhubsOffsetType
+import org.apache.spark.streaming.eventhubs.EventHubsOffsetTypes.EventHubsOffsetType
 import org.apache.spark.SparkConf
 import org.apache.spark.streaming.eventhubs.checkpoint.OffsetStore
 import org.apache.spark.util.Utils
@@ -113,8 +113,6 @@ class ReliableEventHubsReceiverSuite extends FunSuite with BeforeAndAfter with B
     }
   }
 
-  // Test ignored due to an issue with mocking library unavailable to the executors.
-
   test("Reliable EventHubs input stream recover from exception") {
     // After 60 messages then exception, after 100 messages then receive null
     ehClientWrapperMock = new MyMockedEventHubsClientWrapper(100, 60)
@@ -156,15 +154,21 @@ class MyMockedEventHubsClientWrapper(
   override def createReceiverInternal(connectionString: String,
                                       consumerGroup: String,
                                       partitionId: String,
-                                      offsetType: EventhubsOffsetType,
+                                      offsetType: EventHubsOffsetType,
                                       currentOffset: String,
                                       receiverEpoch: Long): Unit = {
 
-    if (offsetType != EventhubsOffsetTypes.None) {
+    logInfo(s"calling createReceiverInternal with $currentOffset and $offsetType")
+
+    if (offsetType != EventHubsOffsetTypes.None) {
 
       offset = currentOffset.toInt
       partition = partitionId
     }
+  }
+
+  override def closeReceiver(): Unit = {
+    // no ops
   }
 
   override def receive(): Iterable[EventData] = {

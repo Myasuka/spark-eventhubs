@@ -69,7 +69,7 @@ class ProgressTrackingAndCheckpointSuite extends CheckpointAndProgressTrackerTes
           EventHubNameAndPartition("eh1", 1) -> (5L, 5L),
           EventHubNameAndPartition("eh1", 2) -> (5L, 5L))),
       operation = (inputDStream: EventHubDirectDStream) =>
-        inputDStream.map(eventData => eventData.getProperties.get("output").toInt + 1),
+        inputDStream.map(eventData => eventData.getProperties.get("output").asInstanceOf[Int] + 1),
       expectedOutputBeforeRestart)
     val eventHubDirectDStream = ssc.graph.getInputStreams().filter(
       _.isInstanceOf[EventHubDirectDStream]).head.asInstanceOf[EventHubDirectDStream]
@@ -110,7 +110,7 @@ class ProgressTrackingAndCheckpointSuite extends CheckpointAndProgressTrackerTes
           EventHubNameAndPartition("eh1", 1) -> (5L, 5L),
           EventHubNameAndPartition("eh1", 2) -> (5L, 5L))),
       operation = (inputDStream: EventHubDirectDStream) =>
-        inputDStream.map(eventData => eventData.getProperties.get("output").toInt + 1),
+        inputDStream.map(eventData => eventData.getProperties.get("output").asInstanceOf[Int] + 1),
       expectedOutputBeforeRestart,
       expectedOutputAfterRestart)
   }
@@ -193,7 +193,7 @@ class ProgressTrackingAndCheckpointSuite extends CheckpointAndProgressTrackerTes
           EventHubNameAndPartition("eh1", 2) -> (5L, 5L))),
       operation = (inputDStream: EventHubDirectDStream) =>
         inputDStream.window(Seconds(2), Seconds(1)).map(
-          eventData => eventData.getProperties.get("output").toInt + 1),
+          eventData => eventData.getProperties.get("output").asInstanceOf[Int] + 1),
       expectedOutputBeforeRestart,
       expectedOutputAfterRestart)
   }
@@ -246,7 +246,7 @@ class ProgressTrackingAndCheckpointSuite extends CheckpointAndProgressTrackerTes
       operation = (inputDStream1: EventHubDirectDStream, inputDStream2: EventHubDirectDStream) =>
         inputDStream1.flatMap(eventData => eventData.getProperties.asScala).
           join(inputDStream2.flatMap(eventData => eventData.getProperties.asScala)).
-          map{case (key, (v1, v2)) => (key, v1.toInt + v2.toInt)},
+          map{case (key, (v1, v2)) => (key, v1.asInstanceOf[Int] + v2.asInstanceOf[Int])},
       expectedOutputBeforeRestart,
       expectedOutputAfterRestart)
   }
@@ -276,7 +276,7 @@ class ProgressTrackingAndCheckpointSuite extends CheckpointAndProgressTrackerTes
           EventHubNameAndPartition("eh1", 2) -> (3L, 3L))
       )),
       operation = (inputDStream: EventHubDirectDStream) =>
-        inputDStream.map(eventData => eventData.getProperties.get("output").toInt + 1),
+        inputDStream.map(eventData => eventData.getProperties.get("output").asInstanceOf[Int] + 1),
       expectedOutputBeforeRestart)
 
     testProgressTracker(
@@ -307,7 +307,7 @@ class ProgressTrackingAndCheckpointSuite extends CheckpointAndProgressTrackerTes
           EventHubNameAndPartition("eh1", 2) -> (7L, 7L))
       )),
       operation = (inputDStream: EventHubDirectDStream) =>
-        inputDStream.map(eventData => eventData.getProperties.get("output").toInt + 1),
+        inputDStream.map(eventData => eventData.getProperties.get("output").asInstanceOf[Int] + 1),
       expectedOutputAfterRestart)
 
     testProgressTracker(
@@ -344,7 +344,7 @@ class ProgressTrackingAndCheckpointSuite extends CheckpointAndProgressTrackerTes
           EventHubNameAndPartition("eh1", 2) -> (3L, 3L))
       )),
       operation = (inputDStream: EventHubDirectDStream) =>
-        inputDStream.map(eventData => eventData.getProperties.get("output").toInt + 1),
+        inputDStream.map(eventData => eventData.getProperties.get("output").asInstanceOf[Int] + 1),
       expectedOutputBeforeRestart)
 
     testProgressTracker(
@@ -413,7 +413,7 @@ class ProgressTrackingAndCheckpointSuite extends CheckpointAndProgressTrackerTes
           EventHubNameAndPartition("eh1", 2) -> (3L, 3L))
       )),
       operation = (inputDStream: EventHubDirectDStream) =>
-        inputDStream.map(eventData => eventData.getProperties.get("output").toInt + 1),
+        inputDStream.map(eventData => eventData.getProperties.get("output").asInstanceOf[Int] + 1),
       expectedOutputBeforeRestart)
 
     testProgressTracker(
@@ -489,7 +489,7 @@ class ProgressTrackingAndCheckpointSuite extends CheckpointAndProgressTrackerTes
           EventHubNameAndPartition("eh1", 2) -> (3L, 3L))
       )),
       operation = (inputDStream: EventHubDirectDStream) =>
-        inputDStream.map(eventData => eventData.getProperties.get("output").toInt + 1),
+        inputDStream.map(eventData => eventData.getProperties.get("output").asInstanceOf[Int] + 1),
       expectedOutput = expectedOutputBeforeRestart)
 
     val currentCheckpointDirectory = ssc.checkpointDir
@@ -509,5 +509,40 @@ class ProgressTrackingAndCheckpointSuite extends CheckpointAndProgressTrackerTes
           EventHubNameAndPartition("eh1", 1) -> (9L, 9L),
           EventHubNameAndPartition("eh1", 2) -> (9L, 9L))),
       9000L)
+  }
+
+  test("offset type is saved and recovered correctly from checkpoint") {
+    val input = Seq(
+      Seq(1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
+      Seq(4, 5, 6, 7, 8, 9, 10, 1, 2, 3),
+      Seq(7, 8, 9, 1, 2, 3, 4, 5, 6, 7))
+    val expectedOutputBeforeRestart = Seq(
+      Seq(4, 5, 7, 8, 10, 2))
+    val expectedOutputAfterRestart = Seq(
+      Seq(4, 5, 7, 8, 10, 2), Seq(6, 7, 9, 10, 3, 4), Seq(8, 9, 11, 2, 5, 6),
+      Seq(10, 11, 3, 4, 7, 8), Seq())
+
+    testCheckpointedOperation(
+      input,
+      eventhubsParams = Map[String, Map[String, String]](
+        "eh1" -> Map(
+          "eventhubs.partition.count" -> "3",
+          "eventhubs.maxRate" -> "2",
+          "eventhubs.name" -> "eh1",
+          "eventhubs.filter.enqueuetime" -> "2000")
+      ),
+      expectedStartingOffsetsAndSeqs = Map(eventhubNamespace ->
+        OffsetRecord(Time(0L), Map(EventHubNameAndPartition("eh1", 0) -> (-1L, -1L),
+          EventHubNameAndPartition("eh1", 1) -> (-1L, -1L),
+          EventHubNameAndPartition("eh1", 2) -> (-1L, -1L))
+        )),
+      expectedOffsetsAndSeqs = OffsetRecord(Time(1000L),
+        Map(EventHubNameAndPartition("eh1", 0) -> (3L, 3L),
+          EventHubNameAndPartition("eh1", 1) -> (3L, 3L),
+          EventHubNameAndPartition("eh1", 2) -> (3L, 3L))),
+      operation = (inputDStream: EventHubDirectDStream) =>
+        inputDStream.map(eventData => eventData.getProperties.get("output").asInstanceOf[Int] + 1),
+      expectedOutputBeforeRestart,
+      expectedOutputAfterRestart)
   }
 }
